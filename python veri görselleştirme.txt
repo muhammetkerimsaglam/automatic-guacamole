@@ -1,0 +1,203 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import seaborn as sns
+sns.set_theme(style="whitegrid", palette="muted")
+plt.rcParams["figure.dpi"] = 120
+plt.rcParams["font.size"] = 11
+df=pd.read_csv("FrenchMotorClaims.csv")
+df["HasClaim"] = (df["ClaimNb"] > 0).astype(int)   # 1 = en az 1 hasar var
+df["DrivAge_Bin"] = pd.cut(
+    df["DrivAge"],
+    bins=[17, 25, 35, 45, 55, 65, 100],
+    labels=["18-25", "26-35", "36-45", "46-55", "56-65", "65+"]
+)
+ 
+df["VehAge_Bin"] = pd.cut(
+    df["VehAge"],
+    bins=[-1, 2, 5, 10, 20, 100],
+    labels=["0-2", "3-5", "6-10", "11-20", "20+"]
+)
+ 
+df["BM_Bin"] = pd.cut(
+    df["BonusMalus"],
+    bins=[49, 60, 80, 100, 230],
+    labels=["50-60\n(Temiz)", "61-80\n(Orta)", "81-100\n(Riskli)", "100+\n(Çok Riskli)"]
+)
+ 
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+fig.suptitle("Hedef Değişken: Hasar Sayısı (ClaimNb)", fontsize=14, fontweight="bold")
+ 
+# Sol: ClaimNb frekansı (0,1,2,3+ gruplama)
+claim_counts = df["ClaimNb"].clip(upper=3).value_counts().sort_index()
+labels = ["0 hasar", "1 hasar", "2 hasar", "3+ hasar"]
+colors = ["#4C72B0", "#DD8452", "#C44E52", "#8172B2"]
+ 
+axes[0].bar(labels, claim_counts.values, color=colors, edgecolor="white", linewidth=0.8)
+axes[0].set_title("Hasar Sayısı Dağılımı")
+axes[0].set_ylabel("Poliçe Sayısı")
+for i, v in enumerate(claim_counts.values):
+    axes[0].text(i, v + 2000, f"{v:,}", ha="center", fontsize=9)
+ 
+# Sağ: Pasta — hasar var/yok oranı
+hasar_oran = df["HasClaim"].value_counts()
+axes[1].pie(
+    hasar_oran.values,
+    labels=["Hasar Yok (%95)", "Hasar Var (%5)"],
+    colors=["#4C72B0", "#DD8452"],
+    autopct="%1.1f%%",
+    startangle=90,
+    wedgeprops={"edgecolor": "white", "linewidth": 2}
+)
+axes[1].set_title("Hasar Var / Yok Oranı")
+ 
+plt.tight_layout()
+plt.savefig("plot1_hedef_degisken.png", bbox_inches="tight")
+plt.show()
+print("✓ plot1 kaydedildi")
+ 
+No description has been provided for this image
+✓ plot1 kaydedildi
+age_hasar = (
+    df.groupby("DrivAge_Bin", observed=True)["HasClaim"]
+    .mean()
+    .mul(100)
+    .reset_index()
+    .rename(columns={"HasClaim": "Hasar_Orani"})
+)
+ 
+fig, ax = plt.subplots(figsize=(9, 5))
+sns.barplot(data=age_hasar, x="DrivAge_Bin", y="Hasar_Orani",hue="DrivAge_Bin",
+            palette="Blues_d", edgecolor="white", ax=ax)
+ax.set_title("Sürücü Yaş Grubuna Göre Hasar Oranı", fontsize=13, fontweight="bold")
+ax.set_xlabel("Sürücü Yaş Grubu")
+ax.set_ylabel("Hasar Oranı (%)")
+ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f%%"))
+for bar in ax.patches:
+    ax.text(
+        bar.get_x() + bar.get_width() / 2,
+        bar.get_height() + 0.05,
+        f"{bar.get_height():.2f}%",
+        ha="center", fontsize=9
+    )
+ 
+# Aktüeryal yorum notu
+ax.axhline(y=df["HasClaim"].mean() * 100, color="red",
+           linestyle="--", linewidth=1.2, label="Genel Ortalama")
+ax.legend()
+plt.tight_layout()
+plt.savefig("plot2_yas_hasar.png", bbox_inches="tight")
+plt.show()
+print("✓ plot2 kaydedildi")
+No description has been provided for this image
+✓ plot2 kaydedildi
+bm_hasar = (
+    df.groupby("BM_Bin", observed=True)["HasClaim"]
+    .mean()
+    .mul(100)
+    .reset_index()
+    .rename(columns={"HasClaim": "Hasar_Orani"})
+)
+ 
+fig, ax = plt.subplots(figsize=(9, 5))
+sns.barplot(data=bm_hasar, x="BM_Bin", y="Hasar_Orani",hue="BM_Bin",
+            palette=["#2ecc71", "#f39c12", "#e74c3c", "#8e44ad"],
+            edgecolor="white", ax=ax)
+ax.set_title("BonusMalus Skoruna Göre Hasar Oranı", fontsize=13, fontweight="bold")
+ax.set_xlabel("BonusMalus Grubu")
+ax.set_ylabel("Hasar Oranı (%)")
+ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f%%"))
+for bar in ax.patches:
+    ax.text(
+        bar.get_x() + bar.get_width() / 2,
+        bar.get_height() + 0.1,
+        f"{bar.get_height():.1f}%",
+        ha="center", fontsize=10, fontweight="bold"
+    )
+ 
+plt.tight_layout()
+plt.savefig("plot3_bonusmalus.png", bbox_inches="tight")
+plt.show()
+print("✓ plot3 kaydedildi")
+ 
+No description has been provided for this image
+✓ plot3 kaydedildi
+vehage_gas = (
+    df.groupby(["VehAge_Bin", "VehGas"], observed=True)["HasClaim"]
+    .mean()
+    .mul(100)
+    .reset_index()
+    .rename(columns={"HasClaim": "Hasar_Orani"})
+)
+ 
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.barplot(data=vehage_gas, x="VehAge_Bin", y="Hasar_Orani",
+            hue="VehGas", palette={"Diesel": "#3498db", "Regular": "#e67e22"},
+            edgecolor="white", ax=ax)
+ax.set_title("Araç Yaşı & Yakıt Tipine Göre Hasar Oranı", fontsize=13, fontweight="bold")
+ax.set_xlabel("Araç Yaş Grubu")
+ax.set_ylabel("Hasar Oranı (%)")
+ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f%%"))
+ax.legend(title="Yakıt Tipi")
+plt.tight_layout()
+plt.savefig("plot4_arac_yas_yakit.png", bbox_inches="tight")
+plt.show()
+print("✓ plot4 kaydedildi")
+ 
+No description has been provided for this image
+✓ plot4 kaydedildi
+numerics = ["ClaimNb", "Exposure", "VehPower", "VehAge",
+            "DrivAge", "BonusMalus", "Density"]
+corr = df[numerics].corr()
+ 
+fig, ax = plt.subplots(figsize=(9, 7))
+sns.heatmap(
+    corr,
+    annot=True,         # sayıları göster
+    fmt=".2f",          # 2 ondalık
+    cmap="coolwarm",    # mavi=negatif, kırmızı=pozitif korelasyon
+    center=0,
+    linewidths=0.5,
+    ax=ax
+)
+ax.set_title("Sayısal Değişkenler Korelasyon Matrisi", fontsize=13, fontweight="bold")
+plt.tight_layout()
+plt.savefig("plot5_korelasyon.png", bbox_inches="tight")
+plt.show()
+print("✓ plot5 kaydedildi")
+ 
+No description has been provided for this image
+✓ plot5 kaydedildi
+region_hasar = (
+    df.groupby("Region")["HasClaim"]
+    .mean()
+    .mul(100)
+    .sort_values(ascending=True)
+    .reset_index()
+    .rename(columns={"HasClaim": "Hasar_Orani"})
+)
+ 
+fig, ax = plt.subplots(figsize=(9, 8))
+colors_reg = ["#e74c3c" if x > df["HasClaim"].mean() * 100 else "#4C72B0"
+              for x in region_hasar["Hasar_Orani"]]
+ax.barh(region_hasar["Region"], region_hasar["Hasar_Orani"],
+        color=colors_reg, edgecolor="white")
+ax.axvline(x=df["HasClaim"].mean() * 100, color="black",
+           linestyle="--", linewidth=1.2, label="Genel Ortalama")
+ax.set_title("Bölgeye Göre Hasar Oranı\n(Kırmızı = Ortalama Üstü)", fontsize=13, fontweight="bold")
+ax.set_xlabel("Hasar Oranı (%)")
+ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f%%"))
+ax.legend()
+plt.tight_layout()
+plt.savefig("plot6_bolge.png", bbox_inches="tight")
+plt.show()
+print("✓ plot6 kaydedildi")
+ 
+print("\n✅ Tüm görselleştirmeler tamamlandı!")
+ 
+No description has been provided for this image
+✓ plot6 kaydedildi
+
+✅ Tüm görselleştirmeler tamamlandı!
+ 
